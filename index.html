@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Menu Spam TikTok - Chinh Chu</title>
+<style>
+  body{background:#111;color:#0f0;font-family:monospace;padding:20px;margin:0}
+  h3{color:#0f0;border-bottom:1px solid #0f0;padding-bottom:8px}
+  textarea,input,button,select{background:#000;color:#0f0;border:1px solid #0f0;padding:8px;width:100%;margin:5px 0;box-sizing:border-box;font-family:monospace}
+  button{cursor:pointer;font-weight:bold}
+  button:hover{background:#0f0;color:#000}
+  #log{height:250px;overflow:auto;border:1px solid #0f0;padding:8px;white-space:pre-wrap;background:#000}
+  .row{display:flex;gap:10px}
+  .row > div{flex:1}
+  .menu{border:1px solid #0f0;padding:10px;margin-bottom:10px}
+  .tab-btn{width:auto;display:inline-block;margin-right:5px}
+  .hidden{display:none}
+  #status{position:fixed;top:5px;right:5px;background:#000;border:1px solid #0f0;padding:5px 10px;font-size:12px}
+</style>
+</head>
+<body>
+
+<div id="status">TRANG THAI: SAN SANG</div>
+
+<h3>=== MENU SPAM TIN NHAN TIKTOK (CHINH CHU) ===</h3>
+
+<div class="menu">
+  <button class="tab-btn" onclick="chuyenTab('tab1')">1. CAU HINH</button>
+  <button class="tab-btn" onclick="chuyenTab('tab2')">2. CHAY NEN</button>
+  <button class="tab-btn" onclick="chuyenTab('tab3')">3. NHAT KY</button>
+</div>
+
+<!-- TAB 1: CAU HINH -->
+<div id="tab1">
+  <label>Link tai khoan TikTok cua BAN (da dang nhap):</label>
+  <input id="link" type="text" placeholder="https://www.tiktok.com/@username_cua_ban">
+
+  <label>Link nguoi nhan (mo khung chat):</label>
+  <input id="linkNhan" type="text" placeholder="https://www.tiktok.com/@nguoi_nhan">
+
+  <label>Noi dung tin nhan:</label>
+  <textarea id="msg" rows="3">xin chao</textarea>
+
+  <div class="row">
+    <div>
+      <label>So lan gui:</label>
+      <input id="count" type="number" value="50">
+    </div>
+    <div>
+      <label>Delay (ms):</label>
+      <input id="delay" type="number" value="1500">
+    </div>
+    <div>
+      <label>Jitter (ms):</label>
+      <input id="jitter" type="number" value="800">
+    </div>
+  </div>
+
+  <button onclick="moTaiKhoan()">MO LINK NGUOI NHAN</button>
+  <button onclick="batDauSpam()">BAT DAU SPAM</button>
+  <button onclick="dungSpam()">DUNG</button>
+</div>
+
+<!-- TAB 2: CHAY NEN -->
+<div id="tab2">
+  <p>Che do chay nen dung Web Worker + Notification API.</p>
+  <p>Trang se tiep tuc chay khi ban chuyen tab khac trong trinh duyet.</p>
+  <button onclick="batThongBao()">CAP QUYEN THONG BAO</button>
+  <button onclick="batWorker()">BAT WORKER NEN</button>
+  <button onclick="tatWorker()">TAT WORKER NEN</button>
+  <p id="workerStatus">Worker: TAT</p>
+</div>
+
+<!-- TAB 3: NHAT KY -->
+<div id="tab3">
+  <div id="log"></div>
+  <button onclick="xoaLog()">XOA NHAT KY</button>
+</div>
+
+<script>
+// Bien toan cuc
+let dangChay = false;
+let worker = null;
+
+// Chuyen tab menu
+function chuyenTab(id){
+  ['tab1','tab2','tab3'].forEach(t=>{
+    document.getElementById(t).classList.add('hidden');
+  });
+  document.getElementById(id).classList.remove('hidden');
+}
+// Mac dinh hien tab 1
+chuyenTab('tab1');
+
+// Ghi log
+function ghiLog(t){
+  const el = document.getElementById('log');
+  const time = new Date().toLocaleTimeString();
+  el.textContent += "["+time+"] "+t+"\n";
+  el.scrollTop = el.scrollHeight;
+  capNhatTrangThai(t);
+}
+
+// Cap nhat trang thai goc phai
+function capNhatTrangThai(t){
+  document.getElementById('status').textContent = "TRANG THAI: "+t;
+}
+
+// Xoa nhat ky
+function xoaLog(){
+  document.getElementById('log').textContent = "";
+}
+
+// Delay Promise
+function cho(ms){
+  return new Promise(r => setTimeout(r, ms));
+}
+
+// Random
+function ngauNhien(min,max){
+  return Math.floor(Math.random()*(max-min+1))+min;
+}
+
+// Mo link nguoi nhan
+function moTaiKhoan(){
+  const link = document.getElementById('linkNhan').value.trim();
+  if(!link){
+    ghiLog("[LOI] Chua nhap link nguoi nhan");
+    return;
+  }
+  window.open(link, '_blank');
+  ghiLog("[MO] Da mo link nguoi nhan: "+link);
+}
+
+// Tim o nhap tin nhan
+function timONhap(){
+  const ds = [
+    'div[contenteditable="true"]',
+    'textarea[data-e2e="chat-input"]',
+    'div[data-e2e="chat-input"]',
+    'textarea'
+  ];
+  for(const s of ds){
+    const el = document.querySelector(s);
+    if(el) return el;
+  }
+  return null;
+}
+
+// Tim nut gui
+function timNutGui(){
+  const ds = [
+    'button[data-e2e="chat-send"]',
+    'button[type="submit"]',
+    'div[data-e2e="chat-send"]'
+  ];
+  for(const s of ds){
+    const el = document.querySelector(s);
+    if(el) return el;
+  }
+  return null;
+}
+
+// Chen noi dung
+function chenNoiDung(el, text){
+  el.focus();
+  if(el.tagName === 'TEXTAREA'){
+    el.value = text;
+    el.dispatchEvent(new Event('input',{bubbles:true}));
+  }else{
+    el.textContent = text;
+    el.dispatchEvent(new InputEvent('input',{bubbles:true}));
+  }
+}
+
+// Gui 1 tin
+async function guiMotTin(noiDung){
+  const oNhap = timONhap();
+  if(!oNhap){
+    ghiLog("[LOI] Khong tim thay o nhap. Mo khung chat truoc.");
+    return false;
+  }
+  chenNoiDung(oNhap, noiDung);
+  await cho(ngauNhien(200,600));
+
+  const ev = new KeyboardEvent('keydown',{
+    key:'Enter', code:'Enter', keyCode:13, which:13, bubbles:true
+  });
+  oNhap.dispatchEvent(ev);
+
+  await cho(ngauNhien(150,400));
+
+  const nut = timNutGui();
+  if(nut) nut.click();
+
+  return true;
+}
+
+// Vong lap spam
+async function batDauSpam(){
+  if(dangChay) return;
+
+  const link = document.getElementById('link').value.trim();
+  if(!link){
+    ghiLog("[LOI] Chua nhap link tai khoan cua ban");
+    return;
+  }
+
+  dangChay = true;
+  const noiDung = document.getElementById('msg').value;
+  const soLan = parseInt(document.getElementById('count').value) || 1;
+  const delay = parseInt(document.getElementById('delay').value) || 1000;
+  const jitter = parseInt(document.getElementById('jitter').value) || 0;
+
+  ghiLog("[BAT DAU] Spam "+soLan+" tin");
+
+  for(let i=0;i<soLan;i++){
+    if(!dangChay){ ghiLog("[DUNG] Nguoi dung dung"); break; }
+
+    const ok = await guiMotTin(noiDung);
+    ghiLog("[LAN "+(i+1)+"] "+(ok ? "DA GUI" : "THAT BAI"));
+
+    const wait = delay + ngauNhien(-jitter, jitter);
+    await cho(Math.max(300, wait));
+  }
+
+  ghiLog("[KET THUC]");
+  dangChay = false;
+}
+
+// Dung spam
+function dungSpam(){
+  dangChay = false;
+  ghiLog("[YEU CAU DUNG]");
+}
+
+// === CHAY NEN ===
+
+// Cap quyen thong bao
+async function batThongBao(){
+  if(!('Notification' in window)){
+    ghiLog("[LOI] Trinh duyet khong ho tro Notification");
+    return;
+  }
+  const q = await Notification.requestPermission();
+  ghiLog("[THONG BAO] Quyen: "+q);
+}
+
+// Bat worker nen
+function batWorker(){
+  if(worker){
+    ghiLog("[WORKER] Da chay roi");
+    return;
+  }
+  // Worker inline bang Blob de chay nen
+  const code = `
+    let timer = null;
+    self.onmessage = function(e){
+      if(e.data === 'start'){
+        timer = setInterval(()=>{
+          self.postMessage('tick');
+        }, 1000);
+      }
+      if(e.data === 'stop'){
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+  `;
+  const blob = new Blob([code], {type:'application/javascript'});
+  worker = new Worker(URL.createObjectURL(blob));
+  worker.onmessage = function(e){
+    // Moi giay worker gui 1 tick, co the dung de kiem tra trang thai
+    if(e.data === 'tick'){
+      // Khong lam gi nang, chi giu worker song
+    }
+  };
+  worker.postMessage('start');
+  document.getElementById('workerStatus').textContent = "Worker: BAT";
+  ghiLog("[WORKER] Da bat worker nen");
+}
+
+// Tat worker
+function tatWorker(){
+  if(worker){
+    worker.postMessage('stop');
+    worker.terminate();
+    worker = null;
+    document.getElementById('workerStatus').textContent = "Worker: TAT";
+    ghiLog("[WORKER] Da tat worker nen");
+  }
+}
+
+// Canh bao khi roi tab
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden){
+    ghiLog("[CANH BAO] Ban da roi tab, chuong trinh van chay");
+  }else{
+    ghiLog("[CANH BAO] Ban da quay lai tab");
+  }
+});
+
+// Ghi log khoi tao
+ghiLog("[KHOI TAO] Menu san sang. Nhap cau hinh roi bam BAT DAU SPAM.");
+</script>
+</body>
+  </html>
